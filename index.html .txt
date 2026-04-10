@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Suite</title>
+    <style>
+        :root { --bg: #0f172a; --card: #1e293b; --primary: #38bdf8; --success: #22c55e; --danger: #ef4444; --text: #f8fafc; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; padding-bottom: 80px; }
+        
+        /* Dashboard Styling */
+        .card { background: var(--card); padding: 20px; border-radius: 16px; margin-bottom: 15px; border: 1px solid #334155; }
+        .goal-bar-bg { background: #334155; height: 12px; border-radius: 10px; margin: 10px 0; overflow: hidden; }
+        .goal-bar-fill { background: var(--success); height: 100%; width: 0%; transition: 0.5s; }
+        
+        /* Tabs */
+        .tab-content { display: none; }
+        .active { display: block; }
+        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #334155; }
+        .nav-item { color: #94a3b8; font-size: 0.8rem; border: none; background: none; cursor: pointer; }
+        .nav-item.active-nav { color: var(--primary); font-weight: bold; }
+
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
+        .btn-action { background: var(--primary); color: #0f172a; font-weight: bold; border: none; }
+        .item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #334155; }
+    </style>
+</head>
+<body>
+
+    <div id="tab-home" class="tab-content active">
+        <div class="card">
+            <small>Net Business Profit</small>
+            <h1 id="total-profit" style="margin: 5px 0;">$0.00</h1>
+            
+            <div style="margin-top: 20px;">
+                <div style="display:flex; justify-content: space-between;"><small>Savings Goal: $10,000</small> <small id="goal-pct">0%</small></div>
+                <div class="goal-bar-bg"><div id="goal-fill" class="goal-bar-fill"></div></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h4>Quick Log</h4>
+            <input type="text" id="desc" placeholder="Item Name">
+            <input type="number" id="amount" placeholder="Amount ($)">
+            <select id="type">
+                <option value="income">Income (+)</option>
+                <option value="expense">Expense (-)</option>
+            </select>
+            <button class="btn-action" onclick="addEntry()">Save to Ledger</button>
+        </div>
+    </div>
+
+    <div id="tab-loan" class="tab-content">
+        <div class="card">
+            <h3>Loan Lab</h3>
+            <p><small>Calculate your monthly payments for equipment or business loans.</small></p>
+            <input type="number" id="loan-amount" placeholder="Loan Amount ($)">
+            <input type="number" id="loan-rate" placeholder="Interest Rate (%)">
+            <input type="number" id="loan-term" placeholder="Months">
+            <button class="btn-action" onclick="calcLoan()">Calculate Monthly Payment</button>
+            <div id="loan-result" style="margin-top: 20px; text-align: center; font-size: 1.5rem; color: var(--primary);"></div>
+        </div>
+    </div>
+
+    <div id="tab-history" class="tab-content">
+        <div class="card">
+            <h3>Transaction History</h3>
+            <div id="list"></div>
+        </div>
+    </div>
+
+    <div class="nav-bar">
+        <button class="nav-item active-nav" onclick="showTab('home', this)">Home</button>
+        <button class="nav-item" onclick="showTab('loan', this)">Loans</button>
+        <button class="nav-item" onclick="showTab('history', this)">History</button>
+    </div>
+
+    <script>
+        let data = JSON.parse(localStorage.getItem('biz_suite')) || { transactions: [], goal: 10000 };
+
+        function showTab(tabId, el) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active-nav'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            el.classList.add('active-nav');
+        }
+
+        function addEntry() {
+            const desc = document.getElementById('desc').value;
+            const amt = parseFloat(document.getElementById('amount').value);
+            const type = document.getElementById('type').value;
+            if (!desc || isNaN(amt)) return;
+
+            data.transactions.push({ desc, amt, type, date: new Date().toLocaleDateString() });
+            localStorage.setItem('biz_suite', JSON.stringify(data));
+            updateUI();
+            document.getElementById('desc').value = '';
+            document.getElementById('amount').value = '';
+        }
+
+        function calcLoan() {
+            const p = parseFloat(document.getElementById('loan-amount').value);
+            const r = parseFloat(document.getElementById('loan-rate').value) / 100 / 12;
+            const n = parseFloat(document.getElementById('loan-term').value);
+            
+            const emi = (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+            document.getElementById('loan-result').innerHTML = `Monthly: $${emi.toFixed(2)}`;
+        }
+
+        function updateUI() {
+            let income = 0, expense = 0;
+            const list = document.getElementById('list');
+            list.innerHTML = '';
+
+            data.transactions.forEach(t => {
+                if (t.type === 'income') income += t.amt; else expense += t.amt;
+                list.innerHTML += `<div class="item"><span>${t.desc}</span> <span style="color:${t.type === 'income' ? '#22c55e' : '#ef4444'}">${t.type === 'income' ? '+' : '-'}$${t.amt}</span></div>`;
+            });
+
+            const profit = income - expense;
+            document.getElementById('total-profit').innerText = `$${profit.toFixed(2)}`;
+            
+            // Update Goal Bar
+            const pct = Math.min((profit / data.goal) * 100, 100);
+            document.getElementById('goal-fill').style.width = pct + '%';
+            document.getElementById('goal-pct').innerText = Math.floor(pct) + '%';
+        }
+
+        updateUI();
+    </script>
+</body>
+</html>
